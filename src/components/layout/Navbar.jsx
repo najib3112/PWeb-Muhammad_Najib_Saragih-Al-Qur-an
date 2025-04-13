@@ -5,6 +5,12 @@ import { Link } from 'react-router-dom';
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
 
+  const menuItems = [
+    { path: '/', label: 'Beranda' },
+    { path: '/surah', label: 'Surah' },
+    { path: '/bookmark', label: 'Bookmark' }
+  ];
+
   return (
     <nav className="bg-white shadow-md">
       <div className="container mx-auto px-4">
@@ -16,15 +22,15 @@ export default function Navbar() {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-gray-700 hover:text-primary transition-colors">
-              Beranda
-            </Link>
-            <Link to="/surah" className="text-gray-700 hover:text-primary transition-colors">
-              Surah
-            </Link>
-            <Link to="/bookmark" className="text-gray-700 hover:text-primary transition-colors">
-              Bookmark
-            </Link>
+            {menuItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className="text-gray-700 hover:text-primary transition-colors"
+              >
+                {item.label}
+              </Link>
+            ))}
           </div>
 
           {/* Mobile Menu Button */}
@@ -46,27 +52,16 @@ export default function Navbar() {
         {isOpen && (
           <div className="md:hidden">
             <div className="flex flex-col space-y-4 py-4">
-              <Link
-                to="/"
-                className="text-gray-700 hover:text-primary transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                Beranda
-              </Link>
-              <Link
-                to="/surah"
-                className="text-gray-700 hover:text-primary transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                Surah
-              </Link>
-              <Link
-                to="/bookmark"
-                className="text-gray-700 hover:text-primary transition-colors"
-                onClick={() => setIsOpen(false)}
-              >
-                Bookmark
-              </Link>
+              {menuItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="text-gray-700 hover:text-primary transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
           </div>
         )}

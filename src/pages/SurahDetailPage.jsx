@@ -1,4 +1,5 @@
-import { ChevronLeftIcon, PauseIcon, PlayIcon } from '@heroicons/react/24/outline';
+import { BookmarkIcon, ChevronLeftIcon, PauseIcon, PlayIcon } from '@heroicons/react/24/outline';
+import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { quranAPI } from '../components/quranAPI';
@@ -10,18 +11,36 @@ export default function SurahDetailPage() {
   const [error, setError] = useState(null);
   const [reciters, setReciters] = useState([]);
   const [selectedReciter, setSelectedReciter] = useState('');
-  const [audioUrl, setAudioUrl] = useState('');
+  const [audioUrl, setAudioUrl] = useState(null);
   const [isLoadingReciters, setIsLoadingReciters] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [isActionLoading, setIsActionLoading] = useState({ copy: false, share: false });
+  const [bookmarks, setBookmarks] = useState([]);
+  const [lastRead, setLastRead] = useState(null);
   const audioRef = useRef(null);
 
   useEffect(() => {
     fetchSurahDetails();
     fetchReciters();
+    // Load bookmarks and last read
+    setBookmarks(quranAPI.getBookmarks());
+    setLastRead(quranAPI.getLastRead());
   }, [surahNumber]);
+
+  // Set last read when opening surah
+  useEffect(() => {
+    if (surahData) {
+      const { surah } = surahData;
+      quranAPI.setLastRead(parseInt(surahNumber), 1, surah.name_simple);
+      setLastRead({
+        surahNumber: parseInt(surahNumber),
+        verseNumber: 1,
+        surahName: surah.name_simple
+      });
+    }
+  }, [surahData, surahNumber]);
 
   useEffect(() => {
     if (selectedReciter) {
@@ -52,13 +71,14 @@ export default function SurahDetailPage() {
       setAudioUrl(data.audio_file.audio_url);
     } catch (err) {
       console.error('Error fetching audio:', err);
+      setAudioUrl(null);
     } finally {
       setIsLoadingAudio(false);
     }
   };
 
   const handlePlayPause = () => {
-    if (audioRef.current) {
+    if (audioRef.current && audioUrl) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
@@ -98,6 +118,50 @@ export default function SurahDetailPage() {
     }
   };
 
+  const handleBookmark = (verseNumber) => {
+    try {
+      const isBookmarked = bookmarks.some(
+        b => b.surahNumber === parseInt(surahNumber) && b.verseNumber === verseNumber
+      );
+
+      if (isBookmarked) {
+        const updatedBookmarks = quranAPI.removeBookmark(parseInt(surahNumber), verseNumber);
+        setBookmarks(updatedBookmarks);
+        setNotification({ show: true, message: 'Bookmark dihapus', type: 'success' });
+      } else {
+        const updatedBookmarks = quranAPI.addBookmark(
+          parseInt(surahNumber),
+          verseNumber,
+          surahData.surah.name_simple
+        );
+        setBookmarks(updatedBookmarks);
+        setNotification({ show: true, message: 'Bookmark ditambahkan', type: 'success' });
+      }
+      setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2000);
+    } catch (error) {
+      console.error('Error managing bookmark:', error);
+      setNotification({ show: true, message: 'Gagal mengelola bookmark', type: 'error' });
+      setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2000);
+    }
+  };
+
+  const handleSetLastRead = (verseNumber) => {
+    try {
+      const updatedLastRead = quranAPI.setLastRead(
+        parseInt(surahNumber),
+        verseNumber,
+        surahData.surah.name_simple
+      );
+      setLastRead(updatedLastRead);
+      setNotification({ show: true, message: 'Terakhir dibaca diperbarui', type: 'success' });
+      setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2000);
+    } catch (error) {
+      console.error('Error setting last read:', error);
+      setNotification({ show: true, message: 'Gagal mengatur terakhir dibaca', type: 'error' });
+      setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2000);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -128,23 +192,21 @@ export default function SurahDetailPage() {
 
   const { surah, verses, translations, transliterations } = surahData;
 
-  // Removed unused getVerseNumber function to resolve the compile error.
-
   const handleCopyAyat = async (verse, translation, index) => {
-      setIsActionLoading(prev => ({ ...prev, copy: true }));
-      const textToCopy = `${verse.text_uthmani}\n\n${translation.text}\n\n(QS. ${surah.name_simple} [${surah.id}]:${index + 1})`;
-      try {
-        await navigator.clipboard.writeText(textToCopy);
-        setNotification({ show: true, message: 'Ayat berhasil disalin', type: 'success' });
-        setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2000);
-      } catch (err) {
-        console.error('Gagal menyalin ayat:', err);
-        setNotification({ show: true, message: 'Gagal menyalin ayat', type: 'error' });
-        setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2000);
-      } finally {
-        setIsActionLoading(prev => ({ ...prev, copy: false }));
-      }
-    };
+    setIsActionLoading(prev => ({ ...prev, copy: true }));
+    const textToCopy = `${verse.text_uthmani}\n\n${translation.text}\n\n(QS. ${surah.name_simple} [${surah.id}]:${index + 1})`;
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setNotification({ show: true, message: 'Ayat berhasil disalin', type: 'success' });
+      setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2000);
+    } catch (err) {
+      console.error('Gagal menyalin ayat:', err);
+      setNotification({ show: true, message: 'Gagal menyalin ayat', type: 'error' });
+      setTimeout(() => setNotification({ show: false, message: '', type: '' }), 2000);
+    } finally {
+      setIsActionLoading(prev => ({ ...prev, copy: false }));
+    }
+  };
 
   const handleShareAyat = async (verse, translation, index) => {
     setIsActionLoading(prev => ({ ...prev, share: true }));
@@ -222,12 +284,14 @@ export default function SurahDetailPage() {
               )}
             </button>
           </div>
-          <audio
-            ref={audioRef}
-            src={audioUrl}
-            onEnded={() => setIsPlaying(false)}
-            className="hidden"
-          />
+          {audioUrl && (
+            <audio
+              ref={audioRef}
+              src={audioUrl}
+              onEnded={() => setIsPlaying(false)}
+              className="hidden"
+            />
+          )}
         </div>
         <Link
           to="/surah"
@@ -254,72 +318,103 @@ export default function SurahDetailPage() {
 
       {/* Verses */}
       <div className="space-y-8">
-        {verses.map((verse, index) => (
-          <div
-            key={verse.id}
-            className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
-          >
-            {/* Nomor Ayat */}
-            <div className="flex justify-between items-center mb-4">
-              <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 font-semibold text-lg">
-                {index + 1}
-              </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => handleCopyAyat(verse, translations[index], index)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors relative" 
-                  title="Salin Ayat"
-                  disabled={isActionLoading.copy}
-                >
-                  {isActionLoading.copy ? (
-                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-                    </svg>
-                  )}
-                </button>
-                <button 
-                  onClick={() => handleShareAyat(verse, translations[index], index)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors relative" 
-                  title="Bagikan Ayat"
-                  disabled={isActionLoading.share}
-                >
-                  {isActionLoading.share ? (
-                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
+        {verses.map((verse, index) => {
+          const isBookmarked = bookmarks.some(
+            b => b.surahNumber === parseInt(surahNumber) && b.verseNumber === (index + 1)
+          );
+          const isLastRead = lastRead && 
+            lastRead.surahNumber === parseInt(surahNumber) && 
+            lastRead.verseNumber === (index + 1);
 
-            {/* Arabic Text */}
-            <div className="text-right mb-4 select-all">
-              <p className="font-arabic text-3xl leading-loose text-gray-900">
-                {verse.text_uthmani}
-              </p>
-            </div>
+          return (
+            <div
+              key={verse.id}
+              className={`bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow ${
+                isLastRead ? 'border-2 border-primary' : ''
+              }`}
+            >
+              {/* Nomor Ayat dan Aksi */}
+              <div className="flex justify-between items-center mb-4">
+                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 font-semibold text-lg">
+                  {index + 1}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleSetLastRead(index + 1)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    title="Tandai Terakhir Dibaca"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-5 h-5 ${isLastRead ? 'text-primary' : 'text-gray-600'}`}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleBookmark(index + 1)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    title={isBookmarked ? "Hapus Bookmark" : "Tambah Bookmark"}
+                  >
+                    {isBookmarked ? (
+                      <BookmarkSolidIcon className="w-5 h-5 text-primary" />
+                    ) : (
+                      <BookmarkIcon className="w-5 h-5 text-gray-600" />
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => handleCopyAyat(verse, translations[index], index)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors relative" 
+                    title="Salin Ayat"
+                    disabled={isActionLoading.copy}
+                  >
+                    {isActionLoading.copy ? (
+                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                      </svg>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => handleShareAyat(verse, translations[index], index)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors relative" 
+                    title="Bagikan Ayat"
+                    disabled={isActionLoading.share}
+                  >
+                    {isActionLoading.share ? (
+                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
 
-            {/* Transliteration */}
-            {transliterations && transliterations[index] && (
-              <div className="mb-4">
-                <p className="text-gray-700 leading-relaxed italic">
-                  {transliterations[index].text}
+              {/* Arabic Text */}
+              <div className="text-right mb-4 select-all">
+                <p className="font-arabic text-3xl leading-loose text-gray-900">
+                  {verse.text_uthmani}
                 </p>
               </div>
-            )}
 
-            {/* Translation */}
-            <div className="border-t pt-4">
-              <p className="text-gray-600 leading-relaxed">
-                {translations[index].text}
-              </p>
+              {/* Transliteration */}
+              {transliterations && transliterations[index] && (
+                <div className="mb-4">
+                  <p className="text-gray-700 leading-relaxed italic">
+                    {transliterations[index].text}
+                  </p>
+                </div>
+              )}
+
+              {/* Translation */}
+              <div className="border-t pt-4">
+                <p className="text-gray-600 leading-relaxed">
+                  {translations[index].text}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

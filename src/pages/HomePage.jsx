@@ -1,8 +1,17 @@
 import { BookmarkIcon, BookOpenIcon, SpeakerWaveIcon } from '@heroicons/react/24/outline';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import Hero from '../components/home/hero';
+import Hero from '../components/home/Hero';
+import { quranAPI } from '../components/quranAPI';
 
 export default function HomePage() {
+  const [lastRead, setLastRead] = useState(null);
+
+  useEffect(() => {
+    const lastReadData = quranAPI.getLastRead();
+    setLastRead(lastReadData);
+  }, []);
+
   const features = [
     {
       icon: <BookOpenIcon className="h-8 w-8" />,
@@ -79,22 +88,42 @@ export default function HomePage() {
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
                 Terakhir Dibaca
               </h3>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600">
-                    Lanjutkan membaca dari...
-                  </p>
-                  <p className="text-primary font-semibold mt-1">
-                    Al-Baqarah, Ayat 255
-                  </p>
+              {lastRead ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-600">
+                      Lanjutkan membaca dari...
+                    </p>
+                    <p className="text-primary font-semibold mt-1">
+                      {lastRead.surahName}, Ayat {lastRead.verseNumber}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {new Date(lastRead.timestamp).toLocaleString('id-ID', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short'
+                      })}
+                    </p>
+                  </div>
+                  <Link
+                    to={`/surah/${lastRead.surahNumber}`}
+                    className="inline-flex items-center justify-center px-6 py-2 border border-transparent text-base font-medium rounded-md text-white bg-primary hover:bg-primary/90 transition-colors duration-300"
+                  >
+                    Lanjutkan
+                  </Link>
                 </div>
-                <Link
-                  to="/surah/2/255"
-                  className="btn btn-primary"
-                >
-                  Lanjutkan
-                </Link>
-              </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-gray-600 mb-4">
+                    Anda belum memiliki riwayat bacaan
+                  </p>
+                  <Link
+                    to="/surah"
+                    className="inline-flex items-center justify-center px-6 py-2 border border-transparent text-base font-medium rounded-md text-white bg-primary hover:bg-primary/90 transition-colors duration-300"
+                  >
+                    Mulai Membaca
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>
