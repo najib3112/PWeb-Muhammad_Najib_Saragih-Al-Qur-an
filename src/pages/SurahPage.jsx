@@ -1,104 +1,16 @@
-import { BookOpenIcon, BookmarkIcon, ClockIcon, SpeakerWaveIcon } from '@heroicons/react/24/outline';
+import { BookOpenIcon, BookmarkIcon, ClockIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import JuzGrid from '../components/juz/JuzGrid';
 import { quranAPI } from '../components/quranAPI';
 import SurahGrid from '../components/surah/SurahGrid';
-
-const SurahInJuz = ({ surah }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
-
-  useEffect(() => {
-    const bookmarks = quranAPI.getBookmarks();
-    setIsBookmarked(bookmarks.some(b => b.surahNumber === surah.number));
-  }, [surah.number]);
-
-  const handlePlayAudio = async () => {
-    try {
-      setIsPlaying(true);
-      await quranAPI.getSurahAudio(1, surah.number); // 1 adalah ID reciter default
-      // Implementasi pemutaran audio
-      setIsPlaying(false);
-    } catch (error) {
-      console.error('Error playing audio:', error);
-      setIsPlaying(false);
-    }
-  };
-
-  const handleBookmark = () => {
-    if (isBookmarked) {
-      quranAPI.removeBookmark(surah.number, 1);
-    } else {
-      quranAPI.addBookmark(surah.number, 1, surah.name);
-    }
-    setIsBookmarked(!isBookmarked);
-  };
-
-  return (
-    <div className="flex items-center py-4">
-      <div className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-700 text-sm">
-        {surah.number}
-      </div>
-      <div className="flex-1 ml-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h4 className="font-medium">{surah.name}</h4>
-            <p className="text-sm text-gray-500">{surah.translation}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xl font-arabic">{surah.nameArabic}</p>
-            <p className="text-sm text-gray-500">{surah.ayahs}</p>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center space-x-2 ml-4">
-        <button
-          onClick={handlePlayAudio}
-          className="p-2 text-gray-500 hover:text-primary transition-colors"
-          disabled={isPlaying}
-        >
-          <SpeakerWaveIcon className="h-5 w-5" />
-        </button>
-        <button
-          onClick={handleBookmark}
-          className={`p-2 transition-colors ${isBookmarked ? 'text-primary' : 'text-gray-500 hover:text-primary'}`}
-        >
-          <BookmarkIcon className="h-5 w-5" />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const JuzSection = ({ juz }) => {
-  // Jika tidak ada data surah, tampilkan informasi dasar juz saja
-  return (
-    <div className="mb-8 bg-white rounded-lg shadow-sm p-6">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="text-lg font-semibold">Juz {juz.juz_number}</h3>
-          <p className="text-sm text-gray-600">{juz.verses_count} Ayat</p>
-        </div>
-        <Link
-          to={`/juz/${juz.juz_number}`}
-          className="text-primary hover:text-primary/80 font-medium"
-        >
-          Baca Juz →
-        </Link>
-      </div>
-      <div className="text-sm text-gray-600">
-        <p>Dimulai dari: {juz.first_verse_id}</p>
-        <p>Berakhir di: {juz.last_verse_id}</p>
-      </div>
-    </div>
-  );
-};
 
 export default function SurahPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [bookmarkedSurahs, setBookmarkedSurahs] = useState([]);
   const [lastReadSurah, setLastReadSurah] = useState(null);
-  const [juzs, setJuzs] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const tabs = [
     {
@@ -128,17 +40,8 @@ export default function SurahPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'juz') {
-      const fetchJuzs = async () => {
-        try {
-          const data = await quranAPI.getAllJuzs();
-          setJuzs(data);
-        } catch (error) {
-          console.error('Error fetching juzs:', error);
-        }
-      };
-      fetchJuzs();
-    }
+    // Reset search when tab changes
+    setSearchTerm('');
   }, [activeTab]);
 
   const loadData = () => {
@@ -149,14 +52,8 @@ export default function SurahPage() {
     setLastReadSurah(lastRead);
   };
 
-  const renderJuzGrid = () => {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8">
-        {juzs.map((juz) => (
-          <JuzSection key={juz.juz_number} juz={juz} />
-        ))}
-      </div>
-    );
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
   };
 
   return (
@@ -194,22 +91,31 @@ export default function SurahPage() {
           </div>
         </div>
 
-        {/* Search Bar */}
-        {activeTab === 'all' && (
-          <div className="mb-8">
-            <input
-              type="text"
-              placeholder="Cari surah berdasarkan nama atau nomor..."
-              className="w-full max-w-2xl mx-auto block px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            />
+        {/* Single Search Bar for all tabs */}
+        {(activeTab === 'all' || activeTab === 'juz') && (
+          <div className="mb-8 relative max-w-2xl mx-auto">
+            <div className={`flex items-center border ${isSearchFocused ? 'border-primary ring-2 ring-primary/20' : 'border-gray-300'} rounded-lg overflow-hidden transition-all duration-200`}>
+              <div className="pl-4">
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Cari surah atau juz berdasarkan nama atau nomor..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
+                className="w-full px-4 py-2 focus:outline-none"
+              />
+            </div>
           </div>
         )}
 
         {/* Content */}
-        {activeTab === 'all' && <SurahGrid />}
+        {activeTab === 'all' && <SurahGrid searchTerm={searchTerm} />}
         
         {/* Juz Grid */}
-        {activeTab === 'juz' && renderJuzGrid()}
+        {activeTab === 'juz' && <JuzGrid searchTerm={searchTerm} />}
         
         {/* Bookmarked Surahs */}
         {activeTab === 'bookmarked' && (
